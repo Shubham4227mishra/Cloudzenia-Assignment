@@ -24,13 +24,17 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and Push Docker Image
+        shell: bash
         env:
           ECR_URI: ${{ secrets.ECR_URI }}
         run: |
+          set -e
           echo "Using ECR repo: $ECR_URI"
+
           docker build -t microservice .
-          docker tag microservice:latest $ECR_URI:latest
-          docker push $ECR_URI:latest
+          docker tag microservice:latest "$ECR_URI:latest"
+          docker push "$ECR_URI:latest"
+
 
 
       - name: Deploy to ECS
