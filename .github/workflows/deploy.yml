@@ -42,9 +42,21 @@ jobs:
 
 
 
-      - name: Deploy to ECS
-        run: |
+          - name: Deploy to ECS
+            shell: bash
+            env:
+          ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+          ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+            run: |
+          set -e
+          CLEAN_CLUSTER=$(echo "$ECS_CLUSTER" | tr -d '\n' | tr -d '\r')
+          CLEAN_SERVICE=$(echo "$ECS_SERVICE" | tr -d '\n' | tr -d '\r')
+
+          echo "Deploying to cluster: $CLEAN_CLUSTER"
+          echo "Deploying service: $CLEAN_SERVICE"
+
           aws ecs update-service \
-            --cluster ${{ secrets.ECS_CLUSTER }} \
-            --service ${{ secrets.ECS_SERVICE }} \
+            --cluster "$CLEAN_CLUSTER" \
+            --service "$CLEAN_SERVICE" \
             --force-new-deployment
+
