@@ -38,8 +38,9 @@ jobs:
           CLEAN_ECR_URI=$(echo "$ECR_URI" | tr -d '\n' | tr -d '\r')
           echo "Using ECR repo: $CLEAN_ECR_URI"
           docker build -t microservice .
-          docker tag microservice:latest "$CLEAN_ECR_URI:latest"
-          docker push "$CLEAN_ECR_URI:latest"
+          IMAGE_TAG=${GITHUB_SHA}
+          docker tag microservice:latest $ECR_URI:$IMAGE_TAG
+           docker push $ECR_URI:$IMAGE_TAG
 
       - name: Deploy to ECS
         shell: bash
