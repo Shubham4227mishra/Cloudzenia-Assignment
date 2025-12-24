@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -13,12 +17,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
+      - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: arn:aws:iam::243017877199:role/github-odic-role
+          aws-region: ap-south-1
+
+      - name: Verify AWS Identity
+        run: aws sts get-caller-identity
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -29,18 +35,11 @@ jobs:
           ECR_URI: ${{ secrets.ECR_URI }}
         run: |
           set -e
-
-          # Sanitize ECR_URI (remove any newline or whitespace)
           CLEAN_ECR_URI=$(echo "$ECR_URI" | tr -d '\n' | tr -d '\r')
-
           echo "Using ECR repo: $CLEAN_ECR_URI"
-
           docker build -t microservice .
           docker tag microservice:latest "$CLEAN_ECR_URI:latest"
           docker push "$CLEAN_ECR_URI:latest"
-
-
-
 
       - name: Deploy to ECS
         shell: bash
@@ -49,18 +48,10 @@ jobs:
           ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
         run: |
           set -e
-
           CLEAN_CLUSTER=$(echo "$ECS_CLUSTER" | tr -d '\n' | tr -d '\r')
           CLEAN_SERVICE=$(echo "$ECS_SERVICE" | tr -d '\n' | tr -d '\r')
-
-          echo "Cluster: $CLEAN_CLUSTER"
-          echo "Service: $CLEAN_SERVICE"
-
-          aws ecs update-service --cluster "$CLEAN_CLUSTER" --service "$CLEAN_SERVICE" --force-new-deployment
-
 
           aws ecs update-service \
             --cluster "$CLEAN_CLUSTER" \
             --service "$CLEAN_SERVICE" \
             --force-new-deployment
-
