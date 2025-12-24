@@ -1,4 +1,4 @@
-name: Build and Deploy Microservice to ECS
+name: Production ECS Deployment
 
 on:
   push:
@@ -23,36 +23,32 @@ jobs:
           role-to-assume: arn:aws:iam::243017877199:role/github-odic-role
           aws-region: ap-south-1
 
-      - name: Verify AWS Identity
-        run: aws sts get-caller-identity
-
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and Push Docker Image
-        shell: bash
+      - name: Build & Push Docker Image
         env:
           ECR_URI: ${{ secrets.ECR_URI }}
         run: |
           set -e
-          CLEAN_ECR_URI=$(echo "$ECR_URI" | tr -d '\n' | tr -d '\r')
-          echo "Using ECR repo: $CLEAN_ECR_URI"
-          docker build -t microservice .
           IMAGE_TAG=${GITHUB_SHA}
-          docker tag microservice:latest $ECR_URI:$IMAGE_TAG
-           docker push $ECR_URI:$IMAGE_TAG
 
-      - name: Deploy to ECS
-        shell: bash
-        env:
-          ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
-          ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
-        run: |
-          set -e
-          CLEAN_CLUSTER=$(echo "$ECS_CLUSTER" | tr -d '\n' | tr -d '\r')
-          CLEAN_SERVICE=$(echo "$ECS_SERVICE" | tr -d '\n' | tr -d '\r')
+          docker build -t microservice .
+          docker tag microservice:latest ${ECR_URI}:${IMAGE_TAG}
+          docker push ${ECR_URI}:${IMAGE_TAG}
 
-          aws ecs update-service \
-            --cluster "$CLEAN_CLUSTER" \
-            --service "$CLEAN_SERVICE" \
-            --force-new-deployment
+      - name: Render New ECS Task Definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: taskdef.json
+          container-name: microservice
+          image: ${{ secrets.ECR_URI }}:${{ github.sha }}
+
+      - name: Deploy to Production ECS Service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          cluster: ${{ secrets.ECS_CLUSTER }}
+          service: ${{ secrets.ECS_SERVICE }}
+          wait-for-service-stability: true
